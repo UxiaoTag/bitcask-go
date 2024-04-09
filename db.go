@@ -59,6 +59,8 @@ func Open(options Options) (*DB, error) {
 
 // 写入Key/Value数据，key不能为空
 func (db *DB) Put(key, value []byte) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}
@@ -116,12 +118,45 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	//如果删之后
+	//如果删之后，不太能理解，这里应该get不到LogRecordDelete的情况
 	if LogRecord.Type == data.LogRecordDelete {
 		return nil, err
 	}
 
 	return LogRecord.Value, err
+}
+
+// 写入Key/Value数据，key不能为空
+func (db *DB) Delete(key []byte) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if len(key) == 0 {
+		return ErrKeyIsEmpty
+	}
+
+	//如果你读取的key不存在或已经删除，就没必要再追加写入当前活跃数据文件中
+	if pos := db.index.Get(key); pos == nil {
+		return nil
+	}
+
+	//构造LogRecord
+	log := &data.LogRecord{
+		Key:  key,
+		Type: data.LogRecordDelete,
+	}
+
+	//追加写入当前活跃数据文件中
+	_, err := db.appendLogRecord(log)
+	if err != nil {
+		return err
+	}
+
+	//结束后更新内存中的索引
+	ok := db.index.Delete(key)
+	if !ok {
+		return ErrIndexUpdateFail
+	}
+	return nil
 }
 
 // 追写到活跃数据文件中
