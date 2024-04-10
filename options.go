@@ -1,5 +1,7 @@
 package bitcask_go
 
+import "os"
+
 type Options struct {
 	DirPath string //数据库数据路径
 
@@ -19,3 +21,10 @@ const (
 	//ART自适应树索引
 	ART
 )
+
+var DefaultOptions = Options{
+	DirPath:      os.TempDir(),
+	DataFileSize: 256 * 1024 * 1024, //256M
+	SyncWrites:   false,
+	IndexType:    Btree,
+}

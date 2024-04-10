@@ -59,8 +59,6 @@ func Open(options Options) (*DB, error) {
 
 // 写入Key/Value数据，key不能为空
 func (db *DB) Put(key, value []byte) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}
@@ -88,7 +86,7 @@ func (db *DB) Put(key, value []byte) error {
 // 通过Key获取value数据，key不能为空
 func (db *DB) Get(key []byte) ([]byte, error) {
 	db.mu.RLock()
-	defer db.mu.RLock()
+	defer db.mu.RUnlock()
 	if len(key) == 0 {
 		return nil, ErrKeyIsEmpty
 	}
@@ -128,8 +126,6 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 
 // 写入Key/Value数据，key不能为空
 func (db *DB) Delete(key []byte) error {
-	db.mu.Lock()
-	defer db.mu.Unlock()
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}

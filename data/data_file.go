@@ -51,7 +51,7 @@ func (df *DataFile) Write(data []byte) error {
 	return nil
 }
 
-// 读取文件中的LogRecord
+// 读取文件中的LogRecord,返回LogRecord,recordSize,error
 func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, int64, error) {
 	filesize, err := df.IoManger.Size()
 	if err != nil {
@@ -85,6 +85,10 @@ func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, int64, error) {
 	var recordSize = headerSize + keySize + valueSize
 
 	log := &LogRecord{}
+
+	//取出type
+	log.Type = header.recordType
+
 	//开始读取用户实际存储的key/value
 	if keySize > 0 || valueSize > 0 {
 		kvBuf, err := df.readNBytes(keySize+valueSize, offset+headerSize)
