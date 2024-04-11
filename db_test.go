@@ -31,7 +31,7 @@ func destroyDB(db *DB) {
 }
 
 func TestOpen(t *testing.T) {
-	opts := DefaultOptions
+	opts := DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go")
 	opts.DirPath = dir
 	db, err := Open(opts)
@@ -41,7 +41,7 @@ func TestOpen(t *testing.T) {
 }
 
 func TestDB_Put(t *testing.T) {
-	opts := DefaultOptions
+	opts := DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-put")
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
@@ -100,7 +100,7 @@ func TestDB_Put(t *testing.T) {
 }
 
 func TestDB_Get(t *testing.T) {
-	opts := DefaultOptions
+	opts := DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-get")
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
@@ -171,7 +171,7 @@ func TestDB_Get(t *testing.T) {
 }
 
 func TestDB_Delete(t *testing.T) {
-	opts := DefaultOptions
+	opts := DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-delete")
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
@@ -221,4 +221,39 @@ func TestDB_Delete(t *testing.T) {
 	val2, err := db2.Get(utils.GetTestKey(22))
 	assert.Nil(t, err)
 	assert.Equal(t, val1, val2)
+}
+
+func TestDB_ListKeys(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-ListKey")
+	opts.DirPath = dir
+	opts.DataFileSize = 64 * 1024 * 1024
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	keys := db.ListKeys()
+	assert.Equal(t, 0, len(keys))
+
+	//add one
+	err = db.Put(utils.GetTestKey(1), utils.RandomValue(24))
+	assert.Nil(t, err)
+	keys = db.ListKeys()
+	t.Log(len(keys))
+
+	//add many
+	err = db.Put(utils.GetTestKey(2), utils.RandomValue(24))
+	assert.Nil(t, err)
+	err = db.Put(utils.GetTestKey(43), utils.RandomValue(24))
+	assert.Nil(t, err)
+	err = db.Put(utils.GetTestKey(34), utils.RandomValue(24))
+	assert.Nil(t, err)
+	keys = db.ListKeys()
+	t.Log(len(keys))
+	for _, key := range keys {
+		t.Log(string(key))
+	}
+	t.Fail()
+
 }

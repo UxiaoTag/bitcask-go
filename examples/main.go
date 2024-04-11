@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	options := bitcask.DefaultOptions
+	options := bitcask.DefaultDBOptions
 	filepath, err := os.Getwd()
 	if err != nil {
 		panic(err)

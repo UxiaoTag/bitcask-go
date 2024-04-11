@@ -12,6 +12,10 @@ type Indexer interface {
 	Put(key []byte, pos *data.LogRecordPos) bool
 	Get(key []byte) *data.LogRecordPos
 	Delete(key []byte) bool
+	//返回创建的索引迭代器
+	Iterator(reverse bool) Iterator
+	//返回大小
+	Size() int
 }
 
 type IndexType = int8
@@ -49,4 +53,28 @@ func (ia *Item) Less(ib btree.Item) bool {
 
 func (it *Item) Key() interface{} {
 	return it.key
+}
+
+// 通用索引迭代器
+type Iterator interface {
+	//回到迭代器起点
+	Rewind()
+
+	//根据传入key值找到第一个大于或小于等于目标的key，根据这个key开始bianli
+	Seek(key []byte)
+
+	//下一个key
+	Next()
+
+	//是否有效，指key是否遍历完毕
+	Valid() bool
+
+	//遍历当前位置Key
+	Key() []byte
+
+	//遍历当前位置Value，这里指内存找到的下标
+	Value() *data.LogRecordPos
+
+	//关闭迭代器
+	Close()
 }

@@ -98,6 +98,12 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 		return nil, ErrKeyNotFound
 	}
 
+	//从数据文件中取出value
+	return db.getValueByPosition(pos)
+}
+
+// 根据索引从数据获取对应value
+func (db *DB) getValueByPosition(pos *data.LogRecordPos) ([]byte, error) {
 	var dataFile *data.DataFile
 	//根据fid找到对应数据文件
 	if db.activeFile.FileId == pos.Fid {
@@ -105,6 +111,7 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	} else {
 		dataFile = db.oldFiles[pos.Fid]
 	}
+
 	//找不到数据文件
 	if dataFile == nil {
 		return nil, ErrNoDataFile
@@ -155,6 +162,56 @@ func (db *DB) Delete(key []byte) error {
 	return nil
 }
 
+// 从数据库中获取所有的key
+func (db *DB) ListKeys() [][]byte {
+	it := db.index.Iterator(false)
+	keys := make([][]byte, db.index.Size())
+	idx := 0
+	for it.Rewind(); it.Valid(); it.Next() {
+		keys[idx] = it.Key()
+		idx++
+	}
+	return keys
+}
+
+// 获取所有数据，并执行用户指定操作
+func (db *DB) Fold(fun func(key []byte, value []byte) bool) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
+	it := db.index.Iterator(false)
+	for it.Rewind(); it.Valid(); it.Next() {
+		value, err := db.getValueByPosition(it.Value())
+		if err != nil {
+			return err
+		}
+		//如果用户返回false，就停止循环
+		if !fun(it.Key(), value) {
+			break
+		}
+	}
+	return nil
+}
+
+func (db *DB) Close() error {
+	//逐一关闭数据库文件
+	if err := db.activeFile.Close(); err != nil {
+		return err
+	}
+	for _, file := range db.oldFiles {
+		err := file.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *DB) Sync() error {
+	//这里是否需要加锁，不解
+	return db.activeFile.Sync()
+}
+
 // 追写到活跃数据文件中
 func (db *DB) appendLogRecord(log *data.LogRecord) (*data.LogRecordPos, error) {
 	db.mu.Lock()
@@ -177,7 +234,7 @@ func (db *DB) appendLogRecord(log *data.LogRecord) (*data.LogRecordPos, error) {
 			return nil, err
 		}
 
-		//当前活跃文件转化位旧数据文件
+		//当前活跃文件转化为旧数据文件
 		db.oldFiles[db.activeFile.FileId] = db.activeFile
 
 		//打开新数据文件
@@ -273,7 +330,7 @@ func (db *DB) loadDataFiles() error {
 	return nil
 }
 
-// 从数据文件加载内存索引
+// 从数据文件加载内存索引，这里后续会改，直接逐一读数据文件太慢了。
 func (db *DB) loadIndexFromDatafile() error {
 	if len(db.fileIds) == 0 {
 		return nil
