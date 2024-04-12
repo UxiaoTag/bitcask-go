@@ -72,7 +72,7 @@ func (it *Iterator) skipToNext() {
 
 	for ; it.indexIter.Valid(); it.indexIter.Next() {
 		key := it.indexIter.Key()
-		if preFixlen <= len(key) && bytes.Compare(it.options.Prefix, it.indexIter.Key()[:preFixlen]) == 0 {
+		if preFixlen <= len(key) && bytes.Equal(it.options.Prefix, it.indexIter.Key()[:preFixlen]) {
 			break
 		}
 	}

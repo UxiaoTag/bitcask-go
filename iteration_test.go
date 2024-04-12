@@ -84,7 +84,7 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 
 	println("---------------------------------------------------------------------")
 
-	//过滤迭代
+	//seek迭代
 	for it.Seek([]byte("d")); it.Valid(); it.Next() {
 		value, err := it.Value()
 		assert.Nil(t, err)
@@ -93,7 +93,7 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 
 	println("---------------------------------------------------------------------")
 
-	//过滤迭代2
+	//seek迭代2
 	for it2.Seek([]byte("d")); it2.Valid(); it2.Next() {
 		value, err := it2.Value()
 		assert.Nil(t, err)
@@ -102,7 +102,7 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 
 	println("---------------------------------------------------------------------")
 
-	//指定PreFix
+	//迭代过滤
 	op.Reverse = false
 	op.Prefix = []byte("aa")
 	it3 := db.NewIterator(op)
@@ -112,5 +112,5 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 		println("key:", string(it3.Key()), " value:", string(value))
 	}
 
-	t.Fail()
+	// t.Fail()
 }

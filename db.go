@@ -174,17 +174,19 @@ func (db *DB) ListKeys() [][]byte {
 	return keys
 }
 
-// 获取所有数据，并执行用户指定操作
+// 获取所有数据，并执行用户指定操作,当函数return false终止循环
 func (db *DB) Fold(fun func(key []byte, value []byte) bool) error {
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
 	it := db.index.Iterator(false)
 	for it.Rewind(); it.Valid(); it.Next() {
+		//取出value
 		value, err := db.getValueByPosition(it.Value())
 		if err != nil {
 			return err
 		}
+		//对key,value执行fun函数
 		//如果用户返回false，就停止循环
 		if !fun(it.Key(), value) {
 			break
@@ -193,7 +195,14 @@ func (db *DB) Fold(fun func(key []byte, value []byte) bool) error {
 	return nil
 }
 
+// 关闭数据库实例
 func (db *DB) Close() error {
+	if db.activeFile == nil {
+		return nil
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+
 	//逐一关闭数据库文件
 	if err := db.activeFile.Close(); err != nil {
 		return err
@@ -207,8 +216,14 @@ func (db *DB) Close() error {
 	return nil
 }
 
+// 持久化数据文件
 func (db *DB) Sync() error {
-	//这里是否需要加锁，不解
+	if db.activeFile == nil {
+		return nil
+	}
+
+	db.mu.Lock()
+	defer db.mu.Unlock()
 	return db.activeFile.Sync()
 }
 
@@ -357,10 +372,14 @@ func (db *DB) loadIndexFromDatafile() error {
 
 			//将读取到的内存索引保存
 			logRecordPos := &data.LogRecordPos{Fid: fileId, Offset: Offset}
+			var ok bool
 			if logRecord.Type == data.LogRecordDelete {
-				db.index.Delete(logRecord.Key)
+				ok = db.index.Delete(logRecord.Key)
 			} else {
-				db.index.Put(logRecord.Key, logRecordPos)
+				ok = db.index.Put(logRecord.Key, logRecordPos)
+			}
+			if !ok {
+				return ErrIndexUpdateFail
 			}
 			//递增offset
 			Offset += size
