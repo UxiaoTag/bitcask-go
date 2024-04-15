@@ -12,6 +12,8 @@ const (
 	LogRecordNormal LogRecordType = iota
 	//删除操作
 	LogRecordDelete
+	//事务提交完成标识
+	LogRecordTxnFinished
 )
 
 // crc type  keysize(变长) valueSize(变长)
@@ -37,6 +39,12 @@ type LogRecordHeader struct {
 	recordType LogRecordType //操作类型
 	keySize    uint32        //key长度
 	valueSize  uint32        //value长度
+}
+
+// 暂存事务的日志结构
+type TransactionReocrd struct {
+	Record *LogRecord
+	Pos    *LogRecordPos
 }
 
 // 对LogRecord进行编码，返回字节数组以及长度
