@@ -16,6 +16,8 @@ type Indexer interface {
 	Iterator(reverse bool) Iterator
 	//返回大小
 	Size() int
+	//关闭索引
+	Close() error
 }
 
 type IndexType = int8
@@ -26,16 +28,19 @@ const (
 	Btree IndexType = iota + 1
 	//ART自适应树
 	ART
+	//B+Tree,且持久化到磁盘
+	BPTree
 )
 
 // 根据索引类型初始化索引
-func NewIndexer(typ IndexType) Indexer {
+func NewIndexer(typ IndexType, dirPath string, syncWrite bool) Indexer {
 	switch typ {
 	case Btree:
 		return NewBTree()
 	case ART:
-		//todo
-		return nil
+		return NewART()
+	case BPTree:
+		return NewBPlusTree(dirPath, syncWrite)
 	default:
 		panic("unkown IndexType")
 	}

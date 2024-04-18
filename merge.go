@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 )
 
-const MergeBase = "-merge"
+const mergeDirName = "-merge"
 
 // TODO
 // Merge清理数据
@@ -158,10 +159,15 @@ func (db *DB) Merge() error {
 // eg /tmp/bitcask /tmp/bitcask-merge
 func (db *DB) getMergePath() string {
 	dirPath := db.options.DirPath
+	//使用os.MkdirTemp("","file-id")，会出现文件dir和base函数压根无法使用的问题。
 	dir := path.Dir(path.Clean(dirPath))
+	if dir == "." { //说明无法识别
+		dirPath = strings.ReplaceAll(dirPath, "\\", "/")
+		dir = path.Dir(path.Clean(dirPath))
+	}
 	//获取路径的最后一个文件
 	base := path.Base(dirPath)
-	return filepath.Join(dir, base+MergeBase)
+	return filepath.Join(dir, base+mergeDirName)
 }
 
 // 加载merge数据目录
@@ -188,6 +194,10 @@ func (db *DB) loadMergeFile() error {
 		//说明完成了
 		if entry.Name() == data.MergeFinishedName {
 			mergeFinished = true
+		}
+		//临时数据库关闭后会触发保存SeqNoFileName，这个是无效文件，甚至会影响原来的SeqNo，需要删掉
+		if entry.Name() == data.SeqNoFileName {
+			continue
 		}
 		mergeFileName = append(mergeFileName, entry.Name())
 	}

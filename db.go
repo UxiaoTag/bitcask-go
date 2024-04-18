@@ -14,20 +14,25 @@ import (
 	"sync"
 )
 
+const seqNoKey = "seqNoKey"
+
 // bitcask存储引擎实例
 type DB struct {
-	mu         *sync.RWMutex
-	options    Options
-	fileIds    []int                     //use for load index
-	index      index.Indexer             //内存索引
-	activeFile *data.DataFile            //当前活跃文件，用于写入
-	oldFiles   map[uint32]*data.DataFile //旧数据文件，只用于读
-	seqNo      uint64                    //事务执行的序列号
-	isMerging  bool
+	mu              *sync.RWMutex
+	options         Options
+	fileIds         []int                     //use for load index
+	index           index.Indexer             //内存索引
+	activeFile      *data.DataFile            //当前活跃文件，用于写入
+	oldFiles        map[uint32]*data.DataFile //旧数据文件，只用于读
+	seqNo           uint64                    //事务执行的序列号
+	isMerging       bool                      //是否在merge
+	seqNoFileExists bool                      //seqNoFile是否存在
+	isInitial       bool                      //第一次初始化
 }
 
 // 打开bitcask数据库引擎
 func Open(options Options) (*DB, error) {
+	var isInitial = false
 	//对用户传入的配置项进行校验
 	if err := checkOptions(options); err != nil {
 		return nil, err
@@ -35,16 +40,26 @@ func Open(options Options) (*DB, error) {
 
 	//判断数据库目录是存在，如果不存在的话，就创建目录
 	if _, err := os.Stat(options.DirPath); os.IsNotExist(err) {
+		isInitial = true
 		//创建目录
 		if err := os.MkdirAll(options.DirPath, os.ModePerm); err != nil {
 			return nil, err
 		}
 	}
+	entries, err := os.ReadDir(options.DirPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		isInitial = true
+	}
+
 	db := &DB{
-		mu:       new(sync.RWMutex),
-		options:  options,
-		oldFiles: make(map[uint32]*data.DataFile),
-		index:    index.NewIndexer(options.IndexType),
+		mu:        new(sync.RWMutex),
+		options:   options,
+		oldFiles:  make(map[uint32]*data.DataFile),
+		index:     index.NewIndexer(options.IndexType, options.DirPath, options.SyncWrites),
+		isInitial: isInitial,
 	}
 
 	//加载merge数据目录
@@ -57,14 +72,31 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
-	//从hint索引中加载索引
-	if err := db.loadIndexFromHintFile(); err != nil {
-		return nil, err
+	//B+Tree持久化到磁盘了，不需要读文件加载索引
+	if options.IndexType != BPTree {
+
+		//从hint索引中加载索引
+		if err := db.loadIndexFromHintFile(); err != nil {
+			return nil, err
+		}
+
+		//数据文件加载内存索引
+		if err := db.loadIndexFromDatafile(); err != nil {
+			return nil, err
+		}
 	}
 
-	//数据文件加载内存索引
-	if err := db.loadIndexFromDatafile(); err != nil {
-		return nil, err
+	if options.IndexType == BPTree {
+		if err := db.loadSeqNo(); err != nil {
+			return nil, err
+		}
+		if db.activeFile != nil {
+			size, err := db.activeFile.IoManger.Size()
+			if err != nil {
+				return nil, err
+			}
+			db.activeFile.Offset = size
+		}
 	}
 
 	return db, nil
@@ -178,6 +210,7 @@ func (db *DB) Delete(key []byte) error {
 // 从数据库中获取所有的key
 func (db *DB) ListKeys() [][]byte {
 	it := db.index.Iterator(false)
+	defer it.Close()
 	keys := make([][]byte, db.index.Size())
 	idx := 0
 	for it.Rewind(); it.Valid(); it.Next() {
@@ -205,16 +238,48 @@ func (db *DB) Fold(fun func(key []byte, value []byte) bool) error {
 			break
 		}
 	}
+	it.Close()
 	return nil
 }
 
 // 关闭数据库实例
 func (db *DB) Close() error {
+	//关闭index BPTree索引
+	if err := db.index.Close(); err != nil {
+		return err
+	}
+
 	if db.activeFile == nil {
 		return nil
 	}
 	db.mu.Lock()
 	defer db.mu.Unlock()
+
+	if err := db.index.Close(); err != nil {
+		return err
+	}
+
+	//保存当前序列号
+	seqNOFile, err := data.OpenSeqNoFile(db.options.DirPath)
+
+	if err != nil {
+		return err
+	}
+
+	record := &data.LogRecord{
+		Key:   []byte(seqNoKey),
+		Value: []byte(strconv.FormatUint(db.seqNo, 10)),
+	}
+	buf, _ := data.EncodeLogRecord(record)
+	if err := seqNOFile.Write(buf); err != nil {
+		return err
+	}
+	if err := seqNOFile.Sync(); err != nil {
+		return err
+	}
+	if err := seqNOFile.Close(); err != nil {
+		return err
+	}
 
 	//逐一关闭数据库文件
 	if err := db.activeFile.Close(); err != nil {
@@ -465,4 +530,28 @@ func (db *DB) loadIndexFromDatafile() error {
 	//	更新序列号
 	db.seqNo = currentSeqNo
 	return nil
+}
+
+func (db *DB) loadSeqNo() error {
+	filename := filepath.Join(db.options.DirPath, data.SeqNoFileName)
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return nil
+	}
+
+	seqNoFile, err := data.OpenSeqNoFile(db.options.DirPath)
+	if err != nil {
+		return err
+	}
+	record, _, err := seqNoFile.ReadLogRecord(0)
+	if err != nil {
+		return err
+	}
+	seqNo, err := strconv.ParseUint(string(record.Value), 10, 64)
+	if err != nil {
+		return err
+	}
+	db.seqNo = seqNo
+	db.seqNoFileExists = true
+	seqNoFile.Close()
+	return os.Remove(filename)
 }

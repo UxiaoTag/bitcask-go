@@ -14,13 +14,16 @@ func TestDB_NewIterator(t *testing.T) {
 	opts.DirPath = dir
 	opts.DataFileSize = 64 * 1024 * 1024
 	db, err := Open(opts)
-	defer destroyDB(db)
+
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 
 	it := db.NewIterator(DefaultIterOptions)
 	assert.NotNil(t, db)
 	assert.Equal(t, false, it.Valid())
+	it.Close()
+	db.Close()
+	destroyDB(db)
 	// t.Fail()
 }
 
@@ -46,6 +49,7 @@ func TestDB_Iterator_One_Value(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, utils.GetTestKey(10), val)
 	t.Log(string(val))
+	it.Close()
 	// t.Fail()
 }
 
@@ -70,7 +74,7 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 		assert.Nil(t, err)
 		println("key:", string(it.Key()), " value:", string(value))
 	}
-
+	it.Close()
 	println("---------------------------------------------------------------------")
 	//反向迭代
 	op := DefaultIterOptions
@@ -81,25 +85,28 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 		assert.Nil(t, err)
 		println("key:", string(it2.Key()), " value:", string(value))
 	}
-
+	it2.Close()
 	println("---------------------------------------------------------------------")
-
+	op.Reverse = false
+	it = db.NewIterator(DefaultIterOptions)
 	//seek迭代
 	for it.Seek([]byte("d")); it.Valid(); it.Next() {
 		value, err := it.Value()
 		assert.Nil(t, err)
 		println("key:", string(it.Key()), " value:", string(value))
 	}
-
+	it.Close()
 	println("---------------------------------------------------------------------")
 
 	//seek迭代2
+	op.Reverse = true
+	it2 = db.NewIterator(op)
 	for it2.Seek([]byte("d")); it2.Valid(); it2.Next() {
 		value, err := it2.Value()
 		assert.Nil(t, err)
 		println("key:", string(it2.Key()), " value:", string(value))
 	}
-
+	it2.Close()
 	println("---------------------------------------------------------------------")
 
 	//迭代过滤
@@ -111,6 +118,6 @@ func TestDB_Iterator_Many_Value(t *testing.T) {
 		assert.Nil(t, err)
 		println("key:", string(it3.Key()), " value:", string(value))
 	}
-
+	it3.Close()
 	// t.Fail()
 }

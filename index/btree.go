@@ -60,6 +60,10 @@ func (bt *BTree) Size() int {
 	return bt.tree.Len()
 }
 
+func (bt *BTree) Close() error {
+	return nil
+}
+
 // BTree 索引迭代器,这里因为btree本身的迭代器不支持相关的操作
 // 所以只能牺牲内存容量，去做一个Item数组，用来做迭代操作
 type btreeIterator struct {

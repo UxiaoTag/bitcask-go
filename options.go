@@ -34,13 +34,16 @@ const (
 
 	//ART自适应树索引
 	ART
+
+	//B+Tree主要持久化索引
+	BPTree
 )
 
 var DefaultDBOptions = Options{
 	DirPath:      os.TempDir(),
 	DataFileSize: 256 * 1024 * 1024, //256M
 	SyncWrites:   false,
-	IndexType:    Btree,
+	IndexType:    BPTree,
 }
 
 var DefaultIterOptions = IteratorOptions{

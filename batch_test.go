@@ -3,7 +3,6 @@ package bitcask_go
 import (
 	"bitcask-go/utils"
 	"os"
-	"path"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,38 +94,38 @@ func TestDB_WriteBatch2(t *testing.T) {
 	t.Log(err)
 	assert.Equal(t, err, ErrKeyNotFound)
 
-	assert.Equal(t, uint64(2), 2)
+	assert.Equal(t, uint64(2), db.seqNo)
 	db2.Close()
 	// t.Fail()
 }
 
-func TestDB_WriteBatch3(t *testing.T) {
-	opts := DefaultDBOptions
-	// dir, _ := os.MkdirTemp("", "bitcask-go-WriteBatch-3")
-	dir, err := os.Getwd()
-	assert.Nil(t, err)
-	dir = path.Join(dir, "tmp", "bitcask-go-WriteBatch-3")
-	opts.DirPath = dir
-	opts.DataFileSize = 64 * 1024 * 1024
-	db, err := Open(opts)
-	// defer destroyDB(db)
-	assert.Nil(t, err)
-	assert.NotNil(t, db)
+// func TestDB_WriteBatch3(t *testing.T) {
+// 	opts := DefaultDBOptions
+// 	// dir, _ := os.MkdirTemp("", "bitcask-go-WriteBatch-3")
+// 	dir, err := os.Getwd()
+// 	assert.Nil(t, err)
+// 	dir = path.Join(dir, "tmp", "bitcask-go-WriteBatch-3")
+// 	opts.DirPath = dir
+// 	opts.DataFileSize = 64 * 1024 * 1024
+// 	db, err := Open(opts)
+// 	// defer destroyDB(db)
+// 	assert.Nil(t, err)
+// 	assert.NotNil(t, db)
 
-	// wb := db.NewWriteBatch(DefaultWriteBatchOptions)
+// 	// wb := db.NewWriteBatch(DefaultWriteBatchOptions)
 
-	// for i := 0; i < 5000; i++ {
-	// 	err := wb.Put(utils.GetTestKey(i), utils.RandomValue(1024))
-	// 	assert.Nil(t, err)
-	// }
-	// err = wb.Commit()
-	// assert.Nil(t, err)
-	value, err := db.Get(utils.GetTestKey(11))
-	t.Log(value, err)
+// 	// for i := 0; i < 5000; i++ {
+// 	// 	err := wb.Put(utils.GetTestKey(i), utils.RandomValue(1024))
+// 	// 	assert.Nil(t, err)
+// 	// }
+// 	// err = wb.Commit()
+// 	// assert.Nil(t, err)
+// 	value, err := db.Get(utils.GetTestKey(11))
+// 	t.Log(value, err)
 
-	keys := db.ListKeys()
-	t.Log(len(keys))
-	// err = db.Close()
-	// assert.Nil(t, err)
-	t.Fail()
-}
+// 	keys := db.ListKeys()
+// 	t.Log(len(keys))
+// 	// err = db.Close()
+// 	// assert.Nil(t, err)
+// 	t.Fail()
+// }

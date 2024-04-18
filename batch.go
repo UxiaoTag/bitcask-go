@@ -22,6 +22,10 @@ type WriteBatch struct {
 }
 
 func (db *DB) NewWriteBatch(options WriteBatchOptions) *WriteBatch {
+	//只有b+tree，不是第一次加载，没有seqNo的文件
+	if db.options.IndexType == BPTree && !db.seqNoFileExists && !db.isInitial {
+		panic("cannot use write batch,seq no file not exists")
+	}
 	return &WriteBatch{
 		mu:           new(sync.Mutex),
 		db:           db,
