@@ -419,5 +419,37 @@ func TestDB_Stat(t *testing.T) {
 	t.Log(stat.DiskSize)
 	t.Log(stat.KeyNum)
 	t.Log(stat.ReclaimableSize)
+	assert.NotNil(t, stat)
 	// t.Fail()
+}
+
+func TestDB_Backup(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-Backup")
+	opts.DirPath = dir
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 100; i < 10000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+
+	backupDir, _ := os.MkdirTemp("", "bitcask-go-Backup-test")
+	err = db.Backup(backupDir)
+	assert.Nil(t, err)
+
+	opts1 := DefaultDBOptions
+	opts1.DirPath = backupDir
+
+	db2, err := Open(opts1)
+	assert.Nil(t, err)
+
+	for i := 100; i < 10000; i++ {
+		val, err := db2.Get(utils.GetTestKey(i))
+		assert.Nil(t, err)
+		assert.NotNil(t, val)
+	}
 }

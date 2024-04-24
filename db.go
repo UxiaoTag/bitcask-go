@@ -5,6 +5,7 @@ import (
 	"bitcask-go/data"
 	"bitcask-go/fio"
 	"bitcask-go/index"
+	"bitcask-go/utils"
 	"errors"
 	"fmt"
 	"io"
@@ -334,6 +335,13 @@ func (db *DB) Stat() *Stat {
 		ReclaimableSize: db.reclaimSize,
 		DiskSize:        diskSize,
 	}
+}
+
+// 备份数据库
+func (db *DB) Backup(dir string) error {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	return utils.CopyDir(db.options.DirPath, dir, []string{fileLockName})
 }
 
 // 根据索引从数据获取对应value
