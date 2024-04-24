@@ -50,7 +50,7 @@ var DefaultDBOptions = Options{
 	DataFileSize:       256 * 1024 * 1024, //256M
 	SyncWrites:         false,
 	BytesPerSync:       0,
-	IndexType:          BPTree,
+	IndexType:          ART,
 	MmapAtStartup:      true,
 	DataFileMergeRatio: 0.5,
 }

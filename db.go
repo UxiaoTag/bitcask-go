@@ -96,14 +96,13 @@ func Open(options Options) (*DB, error) {
 		return nil, err
 	}
 
+	//从hint索引中加载索引
+	if err := db.loadIndexFromHintFile(); err != nil {
+		return nil, err
+	}
+
 	//B+Tree持久化到磁盘了，不需要读文件加载索引
 	if options.IndexType != BPTree {
-
-		//从hint索引中加载索引
-		if err := db.loadIndexFromHintFile(); err != nil {
-			return nil, err
-		}
-
 		//数据文件加载内存索引
 		if err := db.loadIndexFromDatafile(); err != nil {
 			return nil, err

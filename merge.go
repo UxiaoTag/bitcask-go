@@ -323,7 +323,23 @@ func (db *DB) loadIndexFromHintFile() error {
 			return err
 		}
 		pos := data.DecodeLogRecordPos(logRecord.Value)
-		db.index.Put(logRecord.Key, pos)
+		//这里是只考虑bptree的情况
+		if db.options.IndexType == BPTree {
+			nonMergeFileId, err := db.getNonMergeFileId(db.options.DirPath)
+			if err != nil {
+				return err
+			}
+			oldPos := db.index.Get(logRecord.Key)
+			//当你的oldPos的取出来(不是被delete掉了)，且取出来的值小于你merge的值，我觉得应该是
+			//这里说明如果hint取出来一个key在index找不到，默认index在接下来的过程中删掉了该key
+			//如果能取出来且得出的fileid是以前的，merge之前的文件，默认没改过，修正pos
+			//感觉这里的默认还是有点绝对，还需要做更细致的判断
+			if oldPos != nil && oldPos.Fid < nonMergeFileId {
+				db.index.Put(logRecord.Key, pos)
+			}
+		} else {
+			db.index.Put(logRecord.Key, pos)
+		}
 		offset += size
 	}
 

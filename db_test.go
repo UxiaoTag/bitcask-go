@@ -419,5 +419,5 @@ func TestDB_Stat(t *testing.T) {
 	t.Log(stat.DiskSize)
 	t.Log(stat.KeyNum)
 	t.Log(stat.ReclaimableSize)
-	t.Fail()
+	// t.Fail()
 }
