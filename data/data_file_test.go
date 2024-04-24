@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bitcask-go/fio"
 	"os"
 	"path"
 	"testing"
@@ -11,15 +12,15 @@ import (
 func TestOpenDataFile(t *testing.T) {
 	mypath, _ := os.Getwd()
 	path := path.Join(mypath, "tmp")
-	DataFile, err := OpenDataFile(path, 0)
+	DataFile, err := OpenDataFile(path, 0, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile)
 
-	DataFile2, err := OpenDataFile(path, 111)
+	DataFile2, err := OpenDataFile(path, 111, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile2)
 
-	DataFile3, err := OpenDataFile(path, 111)
+	DataFile3, err := OpenDataFile(path, 111, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile3)
 
@@ -30,7 +31,7 @@ func TestOpenDataFile(t *testing.T) {
 func TestDataFile_Write(t *testing.T) {
 	mypath, _ := os.Getwd()
 	path := path.Join(mypath, "tmp")
-	DataFile, err := OpenDataFile(path, 0)
+	DataFile, err := OpenDataFile(path, 0, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile)
 
@@ -47,7 +48,7 @@ func TestDataFile_Write(t *testing.T) {
 func TestDataFile_Close(t *testing.T) {
 	mypath, _ := os.Getwd()
 	path := path.Join(mypath, "tmp")
-	DataFile, err := OpenDataFile(path, 0)
+	DataFile, err := OpenDataFile(path, 0, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile)
 
@@ -59,7 +60,7 @@ func TestDataFile_Close(t *testing.T) {
 func TestDataFile_Sync(t *testing.T) {
 	mypath, _ := os.Getwd()
 	path := path.Join(mypath, "tmp")
-	DataFile, err := OpenDataFile(path, 744)
+	DataFile, err := OpenDataFile(path, 744, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile)
 
@@ -80,7 +81,7 @@ func TestDataFile_Sync(t *testing.T) {
 func TestReadLogRecordDataFile(t *testing.T) {
 	mypath, _ := os.Getwd()
 	path := path.Join(mypath, "tmp")
-	DataFile, err := OpenDataFile(path, 31)
+	DataFile, err := OpenDataFile(path, 31, fio.StandardFIO)
 	assert.Nil(t, err)
 	assert.NotNil(t, DataFile)
 

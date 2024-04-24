@@ -26,6 +26,29 @@ func (db *DB) Merge() error {
 		db.mu.Unlock()
 		return ErrMergeIsProgress
 	}
+
+	//查看是否达到阈值
+	size, err := DirSize(db.options.DirPath)
+	if err != nil {
+		db.mu.Unlock()
+		return err
+	}
+	if float32(db.reclaimSize)/float32(size) < db.options.DataFileMergeRatio {
+		db.mu.Unlock()
+		return ErrMergeRatioUnreached
+	}
+
+	//查看剩余空间是否足够merge
+	freeSize, err := AvailableDiskSize()
+	if err != nil {
+		db.mu.Unlock()
+		return err
+	}
+	if uint64(size-db.reclaimSize) >= freeSize {
+		db.mu.Unlock()
+		return ErrNoFreeSpaceForMerge
+	}
+
 	//开始merging
 	db.isMerging = true
 	//结束设回false
@@ -116,7 +139,7 @@ func (db *DB) Merge() error {
 					return err
 				}
 				//当前索引写到Hint文件
-				if err := hintFile.WriteHintRecord(logRecord.Key, pos); err != nil {
+				if err := hintFile.WriteHintRecord(realKey, pos); err != nil {
 					return err
 				}
 			}
@@ -153,13 +176,24 @@ func (db *DB) Merge() error {
 		return err
 	}
 
+	//这里需要逐一close，尝试过会报错
+	if err := mergedb.Close(); err != nil {
+		return err
+	}
+	if err := hintFile.Close(); err != nil {
+		return err
+	}
+	if err := MergeFinishedFile.Close(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 // eg /tmp/bitcask /tmp/bitcask-merge
 func (db *DB) getMergePath() string {
 	dirPath := db.options.DirPath
-	//使用os.MkdirTemp("","file-id")，会出现文件dir和base函数压根无法使用的问题。
+	//windows使用os.MkdirTemp("","file-id")，会出现文件dir和base函数压根无法使用的问题。
 	dir := path.Dir(path.Clean(dirPath))
 	if dir == "." { //说明无法识别
 		dirPath = strings.ReplaceAll(dirPath, "\\", "/")
@@ -197,6 +231,15 @@ func (db *DB) loadMergeFile() error {
 		}
 		//临时数据库关闭后会触发保存SeqNoFileName，这个是无效文件，甚至会影响原来的SeqNo，需要删掉
 		if entry.Name() == data.SeqNoFileName {
+			continue
+		}
+		//flock文件也不需要粘贴过去
+		if entry.Name() == fileLockName {
+			continue
+		}
+		//如果是bptree-index也不应该传过去，首先BPTree是持久化的索引，他就已经记录好了最新的索引。直接替代会丢失所有数据,merge过程没有记录任何索引，
+		//实测rename还会报错，因为你再上面已经创建了index，所以这里bptree会被占用导致失败。这里跳过
+		if entry.Name() == bptreeIndexName {
 			continue
 		}
 		mergeFileName = append(mergeFileName, entry.Name())
@@ -238,6 +281,7 @@ func (db *DB) loadMergeFile() error {
 	return nil
 }
 
+// 这里找到MergeFile然后读取fileId
 func (db *DB) getNonMergeFileId(mergePath string) (uint32, error) {
 	hintFinishFile, err := data.OpenMergeFinishFile(mergePath)
 	if err != nil {

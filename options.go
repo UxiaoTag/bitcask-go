@@ -9,7 +9,13 @@ type Options struct {
 
 	SyncWrites bool //是否每次都写入文件都进行持久化
 
+	BytesPerSync uint //积累到多少字节后进行持久化
+
+	MmapAtStartup bool //启动是否使用mmap加载
+
 	IndexType IndexerType //索引类型
+
+	DataFileMergeRatio float32 //数据合并的阈值
 }
 
 type IteratorOptions struct {
@@ -40,10 +46,13 @@ const (
 )
 
 var DefaultDBOptions = Options{
-	DirPath:      os.TempDir(),
-	DataFileSize: 256 * 1024 * 1024, //256M
-	SyncWrites:   false,
-	IndexType:    BPTree,
+	DirPath:            os.TempDir(),
+	DataFileSize:       256 * 1024 * 1024, //256M
+	SyncWrites:         false,
+	BytesPerSync:       0,
+	IndexType:          BPTree,
+	MmapAtStartup:      true,
+	DataFileMergeRatio: 0.5,
 }
 
 var DefaultIterOptions = IteratorOptions{

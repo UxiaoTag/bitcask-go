@@ -24,11 +24,14 @@ func NewART() *AdaptiveRadixTree {
 	}
 }
 
-func (art *AdaptiveRadixTree) Put(key []byte, pos *data.LogRecordPos) bool {
+func (art *AdaptiveRadixTree) Put(key []byte, pos *data.LogRecordPos) *data.LogRecordPos {
 	art.lock.Lock()
-	defer art.lock.Unlock()
-	art.tree.Insert(key, pos)
-	return true
+	oldValue, _ := art.tree.Insert(key, pos)
+	art.lock.Unlock()
+	if oldValue == nil {
+		return nil
+	}
+	return oldValue.(*data.LogRecordPos)
 }
 func (art *AdaptiveRadixTree) Get(key []byte) *data.LogRecordPos {
 	art.lock.RLock()
@@ -39,11 +42,14 @@ func (art *AdaptiveRadixTree) Get(key []byte) *data.LogRecordPos {
 	}
 	return value.(*data.LogRecordPos)
 }
-func (art *AdaptiveRadixTree) Delete(key []byte) bool {
+func (art *AdaptiveRadixTree) Delete(key []byte) (*data.LogRecordPos, bool) {
 	art.lock.Lock()
 	defer art.lock.Unlock()
-	_, deleted := art.tree.Delete(key)
-	return deleted
+	oldValue, deleted := art.tree.Delete(key)
+	if oldValue == nil {
+		return nil, deleted
+	}
+	return oldValue.(*data.LogRecordPos), deleted
 }
 
 // 返回创建的索引迭代器

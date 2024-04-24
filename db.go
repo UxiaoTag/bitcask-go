@@ -3,8 +3,10 @@ package bitcask_go
 
 import (
 	"bitcask-go/data"
+	"bitcask-go/fio"
 	"bitcask-go/index"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -12,9 +14,16 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+
+	"github.com/gofrs/flock"
 )
 
-const seqNoKey = "seqNoKey"
+const (
+	seqNoKey        = "seqNoKey"
+	fileLockName    = "flock"
+	bptreeIndexName = "bptree-index"
+)
 
 // bitcask存储引擎实例
 type DB struct {
@@ -28,6 +37,9 @@ type DB struct {
 	isMerging       bool                      //是否在merge
 	seqNoFileExists bool                      //seqNoFile是否存在
 	isInitial       bool                      //第一次初始化
+	filelock        *flock.Flock              //文件锁保证多进程之间互斥
+	bytesWrite      uint                      //记录写了多少字节，用于WritePerSync
+	reclaimSize     int64                     //表示有多少数据无效
 }
 
 // 打开bitcask数据库引擎
@@ -46,6 +58,17 @@ func Open(options Options) (*DB, error) {
 			return nil, err
 		}
 	}
+
+	//判断当前数据目录路径是否在使用
+	filelock := flock.New(filepath.Join(options.DirPath, fileLockName))
+	hold, err := filelock.TryLock()
+	if err != nil {
+		return nil, err
+	}
+	if !hold {
+		return nil, ErrDatabaseIsUsing
+	}
+
 	entries, err := os.ReadDir(options.DirPath)
 	if err != nil {
 		return nil, err
@@ -60,6 +83,7 @@ func Open(options Options) (*DB, error) {
 		oldFiles:  make(map[uint32]*data.DataFile),
 		index:     index.NewIndexer(options.IndexType, options.DirPath, options.SyncWrites),
 		isInitial: isInitial,
+		filelock:  filelock,
 	}
 
 	//加载merge数据目录
@@ -99,6 +123,14 @@ func Open(options Options) (*DB, error) {
 		}
 	}
 
+	//这里我认为得放外面，你如果是BPTree打开的，你放在loadIndexFromDatafile里面，导致你使用BPTree做索引开库，你就不会执行重置io
+	//写入必出panic。
+	//如果使用了mmap就要重置io.manager(因为现在引入的mmap无法读写)
+	if db.options.MmapAtStartup {
+		if err := db.reseIoType(); err != nil {
+			return nil, err
+		}
+	}
 	return db, nil
 }
 
@@ -122,8 +154,9 @@ func (db *DB) Put(key, value []byte) error {
 	}
 
 	//结束后更新内存中的索引
-	if ok := db.index.Put(key, pos); !ok {
-		return ErrIndexUpdateFail
+	if pos := db.index.Put(key, pos); pos != nil {
+		// db.reclaimSize += int64(pos.Size)
+		atomic.AddInt64(&db.reclaimSize, int64(pos.Size))
 	}
 	return nil
 }
@@ -147,35 +180,6 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	return db.getValueByPosition(pos)
 }
 
-// 根据索引从数据获取对应value
-func (db *DB) getValueByPosition(pos *data.LogRecordPos) ([]byte, error) {
-	var dataFile *data.DataFile
-	//根据fid找到对应数据文件
-	if db.activeFile.FileId == pos.Fid {
-		dataFile = db.activeFile
-	} else {
-		dataFile = db.oldFiles[pos.Fid]
-	}
-
-	//找不到数据文件
-	if dataFile == nil {
-		return nil, ErrNoDataFile
-	}
-
-	//根据偏移读取数据
-	LogRecord, _, err := dataFile.ReadLogRecord(pos.Offset)
-	if err != nil {
-		return nil, err
-	}
-
-	//如果删之后，不太能理解，这里应该get不到LogRecordDelete的情况
-	if LogRecord.Type == data.LogRecordDelete {
-		return nil, err
-	}
-
-	return LogRecord.Value, err
-}
-
 // 写入Key/Value数据，key不能为空
 func (db *DB) Delete(key []byte) error {
 	if len(key) == 0 {
@@ -194,15 +198,20 @@ func (db *DB) Delete(key []byte) error {
 	}
 
 	//追加写入当前活跃数据文件中
-	_, err := db.appendLogRecordWithLock(log)
+	pos, err := db.appendLogRecordWithLock(log)
 	if err != nil {
 		return err
 	}
-
+	// db.reclaimSize += int64(pos.Size)
+	atomic.AddInt64(&db.reclaimSize, int64(pos.Size))
 	//结束后更新内存中的索引
-	ok := db.index.Delete(key)
+	oldPos, ok := db.index.Delete(key)
 	if !ok {
 		return ErrIndexUpdateFail
+	}
+	if oldPos != nil {
+		// db.reclaimSize += int64(oldPos.Size)
+		atomic.AddInt64(&db.reclaimSize, int64(oldPos.Size))
 	}
 	return nil
 }
@@ -244,6 +253,12 @@ func (db *DB) Fold(fun func(key []byte, value []byte) bool) error {
 
 // 关闭数据库实例
 func (db *DB) Close() error {
+	defer func() {
+		if err := db.filelock.Unlock(); err != nil {
+			panic(fmt.Sprintf("failed to unlock the direct,%v", err))
+		}
+	}()
+
 	//关闭index BPTree索引
 	if err := db.index.Close(); err != nil {
 		return err
@@ -305,6 +320,52 @@ func (db *DB) Sync() error {
 	return db.activeFile.Sync()
 }
 
+// 返回数据库相关信息
+func (db *DB) Stat() *Stat {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	var dataFileNum = uint(len(db.oldFiles))
+	if db.activeFile != nil {
+		dataFileNum += 1
+	}
+	diskSize, _ := DirSize(db.options.DirPath)
+	return &Stat{
+		KeyNum:          uint(db.index.Size()),
+		DataFileNum:     dataFileNum,
+		ReclaimableSize: db.reclaimSize,
+		DiskSize:        diskSize,
+	}
+}
+
+// 根据索引从数据获取对应value
+func (db *DB) getValueByPosition(pos *data.LogRecordPos) ([]byte, error) {
+	var dataFile *data.DataFile
+	//根据fid找到对应数据文件
+	if db.activeFile.FileId == pos.Fid {
+		dataFile = db.activeFile
+	} else {
+		dataFile = db.oldFiles[pos.Fid]
+	}
+
+	//找不到数据文件
+	if dataFile == nil {
+		return nil, ErrNoDataFile
+	}
+
+	//根据偏移读取数据
+	LogRecord, _, err := dataFile.ReadLogRecord(pos.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	//如果删之后，不太能理解，这里应该get不到LogRecordDelete的情况
+	if LogRecord.Type == data.LogRecordDelete {
+		return nil, err
+	}
+
+	return LogRecord.Value, err
+}
+
 // 追写到活跃文件中，但是加锁
 func (db *DB) appendLogRecordWithLock(log *data.LogRecord) (*data.LogRecordPos, error) {
 	db.mu.Lock()
@@ -349,14 +410,24 @@ func (db *DB) appendLogRecord(log *data.LogRecord) (*data.LogRecordPos, error) {
 		return nil, err
 	}
 
+	db.bytesWrite += uint(size)
+
+	//如果没配置syncWrite，配置了BytesWrite
+	var needSync = db.options.SyncWrites
+	if !db.options.SyncWrites && db.options.BytesPerSync > 0 && db.bytesWrite >= db.options.BytesPerSync {
+		needSync = true
+	}
+
 	//如果配置了SyncWrites，每次写入文件都进行持久化
-	if db.options.SyncWrites {
+	if needSync {
 		if err := db.activeFile.Sync(); err != nil {
 			return nil, err
 		}
+		//清空累计值
+		db.bytesWrite = 0
 	}
 
-	pos := &data.LogRecordPos{Fid: db.activeFile.FileId, Offset: writerOffset}
+	pos := &data.LogRecordPos{Fid: db.activeFile.FileId, Offset: writerOffset, Size: uint32(size)}
 	return pos, nil
 }
 
@@ -368,7 +439,7 @@ func (db *DB) setActiveDataFile() error {
 	if db.activeFile != nil {
 		initialFileId = db.activeFile.FileId + 1
 	}
-	dataFile, err := data.OpenDataFile(db.options.DirPath, initialFileId)
+	dataFile, err := data.OpenDataFile(db.options.DirPath, initialFileId, fio.StandardFIO)
 	if err != nil {
 		return err
 	}
@@ -383,6 +454,9 @@ func checkOptions(options Options) error {
 	}
 	if options.DataFileSize <= 0 {
 		return errors.New("datafile size <= 0")
+	}
+	if options.DataFileMergeRatio < 0 || options.DataFileMergeRatio > 1 {
+		return errors.New("DataFileMergeRatio sould be in 0~1")
 	}
 	return nil
 }
@@ -415,7 +489,13 @@ func (db *DB) loadDataFiles() error {
 	db.fileIds = fileIds
 
 	for i, fid := range fileIds {
-		datafile, err := data.OpenDataFile(db.options.DirPath, uint32(fid))
+		ioType := fio.StandardFIO
+		//这里开启就使用mmap加速打开数据文件
+		if db.options.MmapAtStartup {
+			ioType = fio.MemroyMap
+		}
+
+		datafile, err := data.OpenDataFile(db.options.DirPath, uint32(fid), ioType)
 		if err != nil {
 			return err
 		}
@@ -448,14 +528,15 @@ func (db *DB) loadIndexFromDatafile() error {
 
 	//更新内存索引
 	updateIndex := func(key []byte, typ data.LogRecordType, logRecordPos *data.LogRecordPos) error {
-		var ok bool
+		var oldPos *data.LogRecordPos
 		if typ == data.LogRecordDelete {
-			ok = db.index.Delete(key)
+			oldPos, _ = db.index.Delete(key)
+			db.reclaimSize += int64(logRecordPos.Size)
 		} else {
-			ok = db.index.Put(key, logRecordPos)
+			oldPos = db.index.Put(key, logRecordPos)
 		}
-		if !ok {
-			panic("fail to update index and startup")
+		if oldPos != nil {
+			db.reclaimSize += int64(oldPos.Size)
 		}
 		return nil
 	}
@@ -554,4 +635,20 @@ func (db *DB) loadSeqNo() error {
 	db.seqNoFileExists = true
 	seqNoFile.Close()
 	return os.Remove(filename)
+}
+
+func (db *DB) reseIoType() error {
+	if db.activeFile == nil {
+		return nil
+	}
+	if err := db.activeFile.SetIOManager(db.options.DirPath, fio.StandardFIO); err != nil {
+		return err
+	}
+
+	for _, file := range db.oldFiles {
+		if err := file.SetIOManager(db.options.DirPath, fio.StandardFIO); err != nil {
+			return err
+		}
+	}
+	return nil
 }

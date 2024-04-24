@@ -10,4 +10,7 @@ var (
 	ErrDataDirectoryCorrupdated = errors.New("the database directory maybe corrupted")
 	ErrExceedMaxBatchNum        = errors.New("exceed max batch num")
 	ErrMergeIsProgress          = errors.New("merge is progress")
+	ErrDatabaseIsUsing          = errors.New("the database directory is used by another process")
+	ErrMergeRatioUnreached      = errors.New("the merge ratio has not reach the option")
+	ErrNoFreeSpaceForMerge      = errors.New("the disk no have free space to merge")
 )

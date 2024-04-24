@@ -5,7 +5,9 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -140,7 +142,7 @@ func TestDB_Get(t *testing.T) {
 	assert.Equal(t, ErrKeyNotFound, err)
 
 	// 5.转换为了旧的数据文件，从旧的数据文件上获取 value
-	for i := 100; i < 10000; i++ {
+	for i := 100; i < 1000000; i++ {
 		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
 		assert.Nil(t, err)
 	}
@@ -323,4 +325,99 @@ func TestDB_Sync(t *testing.T) {
 	err = db.Sync()
 	assert.Nil(t, err)
 
+}
+
+func TestDB_fileLock(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-FileLock")
+	opts.DirPath = dir
+	opts.DataFileSize = 64 * 1024 * 1024
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	db2, err := Open(opts)
+	t.Log(err)
+	t.Log(db2)
+	assert.Equal(t, ErrDatabaseIsUsing, err)
+	assert.Nil(t, db2)
+
+	err = db.Close()
+	assert.Nil(t, err)
+
+	db2, err = Open(opts)
+	t.Log(err)
+	t.Log(db2)
+	assert.Nil(t, err)
+	assert.NotNil(t, db2)
+	// t.Fail()
+}
+
+// this test use for mmapTestTime test
+func TestDB_Write1000000(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, err := os.Getwd()
+	assert.Nil(t, err)
+	dir = path.Join(dir, "tmp", "bitcask-go-mmapTest")
+	opts.DirPath = dir
+	// opts.IndexType = ART
+	opts.DataFileSize = 64 * 1024 * 1024
+	db, err := Open(opts)
+	assert.Nil(t, err)
+	for i := 0; i < 3000000; i++ {
+		db.Put(utils.GetTestKey(i), utils.RandomValue(10))
+	}
+	err = db.Close()
+	assert.Nil(t, err)
+}
+
+func TestDB_MMapTime(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, err := os.Getwd()
+	assert.Nil(t, err)
+	dir = path.Join(dir, "tmp", "bitcask-go-mmapTest")
+	opts.DirPath = dir
+	// opts.IndexType = ART
+	opts.DataFileSize = 64 * 1024 * 1024
+	opts.MmapAtStartup = true
+	now := time.Now()
+	db, err := Open(opts)
+
+	t.Log("open Time", time.Since(now))
+
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+	// t.Fail()
+}
+
+func TestDB_Stat(t *testing.T) {
+	opts := DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-Stat")
+	opts.DirPath = dir
+	opts.DataFileSize = 64 * 1024 * 1024
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 100; i < 10000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+	for i := 100; i < 10000; i++ {
+		err := db.Delete(utils.GetTestKey(i))
+		assert.Nil(t, err)
+	}
+	for i := 2000; i < 5000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.RandomValue(128))
+		assert.Nil(t, err)
+	}
+	stat := db.Stat()
+
+	t.Log(stat.DataFileNum)
+	t.Log(stat.DiskSize)
+	t.Log(stat.KeyNum)
+	t.Log(stat.ReclaimableSize)
+	t.Fail()
 }

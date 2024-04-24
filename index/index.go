@@ -9,9 +9,11 @@ import (
 
 // Indexer 抽象索引接口，后续如果想要接入其他数据结构，实现对应接口即可
 type Indexer interface {
-	Put(key []byte, pos *data.LogRecordPos) bool
+	//put操作，返回key上一次put的索引值
+	Put(key []byte, pos *data.LogRecordPos) *data.LogRecordPos
 	Get(key []byte) *data.LogRecordPos
-	Delete(key []byte) bool
+	//delete操作，返回key上一次put的索引值
+	Delete(key []byte) (*data.LogRecordPos, bool)
 	//返回创建的索引迭代器
 	Iterator(reverse bool) Iterator
 	//返回大小

@@ -129,13 +129,18 @@ func (wb *WriteBatch) Commit() error {
 	//更新内存索引
 	for _, record := range wb.pendingWrite {
 		reocrdPos := pos[string(record.Key)]
+		var oldPos *data.LogRecordPos
 		if record.Type == data.LogRecordDelete {
-			wb.db.index.Delete(record.Key)
+			oldPos, _ = wb.db.index.Delete(record.Key)
+
 		}
 		if record.Type == data.LogRecordNormal {
-			wb.db.index.Put(record.Key, reocrdPos)
+			oldPos = wb.db.index.Put(record.Key, reocrdPos)
 		}
 
+		if oldPos != nil {
+			wb.db.reclaimSize += int64(oldPos.Size)
+		}
 	}
 	wb.pendingWrite = make(map[string]*data.LogRecord)
 	return nil
