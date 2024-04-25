@@ -112,3 +112,5 @@ func (db *BitcaskDB) Delete(ctx context.Context, table string, key string) error
 func init() {
 	ycsb.RegisterDBCreator("BitcaskCreator", BitcaskCreator{})
 }
+
+//TODO实现完接口还要实现测试方式
