@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestReadisDataStructure_Get(t *testing.T) {
+func TestRedisDataStructure_Get(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-get")
 	opts.DirPath = dir
@@ -38,7 +38,7 @@ func TestReadisDataStructure_Get(t *testing.T) {
 	// t.Fail()
 }
 
-func TestReadisDataStructure_Del_Type(t *testing.T) {
+func TestRedisDataStructure_Del_Type(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-del-type")
 	opts.DirPath = dir
@@ -67,7 +67,7 @@ func TestReadisDataStructure_Del_Type(t *testing.T) {
 	// t.Fail()
 }
 
-func TestReadisDataStructure_HGet(t *testing.T) {
+func TestRedisDataStructure_HGet(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-hget")
 	opts.DirPath = dir
@@ -103,7 +103,7 @@ func TestReadisDataStructure_HGet(t *testing.T) {
 	// t.Fail()
 }
 
-func TestReadisDataStructure_HDel(t *testing.T) {
+func TestRedisDataStructure_HDel(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-hdel")
 	opts.DirPath = dir
@@ -141,7 +141,7 @@ func TestReadisDataStructure_HDel(t *testing.T) {
 
 }
 
-func TestReadisDataStructure_HKeys(t *testing.T) {
+func TestRedisDataStructure_HKeys(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-hkeys")
 	opts.DirPath = dir
@@ -176,7 +176,7 @@ func TestReadisDataStructure_HKeys(t *testing.T) {
 	// t.Fail()
 }
 
-func TestReadisDataStructure_HVals(t *testing.T) {
+func TestRedisDataStructure_HVals(t *testing.T) {
 	opts := bitcask_go.DefaultDBOptions
 	dir, _ := os.MkdirTemp("", "bitcask-go-redis-hvals")
 	opts.DirPath = dir

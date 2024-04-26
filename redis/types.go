@@ -23,24 +23,25 @@ const (
 )
 
 // readis数据结构服务
-type ReadisDataStructure struct {
+type RedisDataStructure struct {
 	db *bitcask.DB
 }
 
 // 初始化
-func NewRedisDataStructure(Options bitcask.Options) (*ReadisDataStructure, error) {
+func NewRedisDataStructure(Options bitcask.Options) (*RedisDataStructure, error) {
 	db, err := bitcask.Open(Options)
 	if err != nil {
 		return nil, err
 	}
-	return &ReadisDataStructure{
+	return &RedisDataStructure{
 		db: db,
 	}, err
 }
 
 // ----------------------------------------------------String数据结构-----------------------------------------------------------------------------
+
 // set放置string类型数据
-func (rds *ReadisDataStructure) Set(key []byte, ttl time.Duration, value []byte) error {
+func (rds *RedisDataStructure) Set(key []byte, ttl time.Duration, value []byte) error {
 	if value == nil {
 		return nil
 	}
@@ -63,7 +64,7 @@ func (rds *ReadisDataStructure) Set(key []byte, ttl time.Duration, value []byte)
 	return rds.db.Put(key, encValue)
 }
 
-func (rds *ReadisDataStructure) Get(key []byte) ([]byte, error) {
+func (rds *RedisDataStructure) Get(key []byte) ([]byte, error) {
 	encValue, err := rds.db.Get(key)
 	if err != nil {
 		return nil, err
@@ -89,7 +90,7 @@ func (rds *ReadisDataStructure) Get(key []byte) ([]byte, error) {
 // ----------------------------------------------------Hash数据结构-----------------------------------------------------------------------------
 
 // HashSet方法,此处bool返回为该field是否存在
-func (rds *ReadisDataStructure) HSet(key, field, value []byte) (bool, error) {
+func (rds *RedisDataStructure) HSet(key, field, value []byte) (bool, error) {
 	//查找元数据
 	meta, err := rds.findMetadata(key, Hash)
 	if err != nil {
@@ -124,7 +125,7 @@ func (rds *ReadisDataStructure) HSet(key, field, value []byte) (bool, error) {
 	return !exist, nil
 }
 
-func (rds *ReadisDataStructure) HGet(key, field []byte) ([]byte, error) {
+func (rds *RedisDataStructure) HGet(key, field []byte) ([]byte, error) {
 	//查找元数据
 	meta, err := rds.findMetadata(key, Hash)
 	if err != nil {
@@ -143,7 +144,7 @@ func (rds *ReadisDataStructure) HGet(key, field []byte) ([]byte, error) {
 	return rds.db.Get(hk.encode())
 }
 
-func (rds *ReadisDataStructure) HDel(key, field []byte) (bool, error) {
+func (rds *RedisDataStructure) HDel(key, field []byte) (bool, error) {
 	meta, err := rds.findMetadata(key, Hash)
 	if err != nil {
 		return false, err
@@ -177,7 +178,7 @@ func (rds *ReadisDataStructure) HDel(key, field []byte) (bool, error) {
 	return exist, nil
 }
 
-func (rds *ReadisDataStructure) Hkeys(key []byte) ([][]byte, error) {
+func (rds *RedisDataStructure) Hkeys(key []byte) ([][]byte, error) {
 	meta, err := rds.findMetadata(key, Hash)
 	if err != nil {
 		return nil, err
@@ -216,7 +217,7 @@ func (rds *ReadisDataStructure) Hkeys(key []byte) ([][]byte, error) {
 	return fields, nil
 }
 
-func (rds *ReadisDataStructure) Hvals(key []byte) ([][]byte, error) {
+func (rds *RedisDataStructure) Hvals(key []byte) ([][]byte, error) {
 	meta, err := rds.findMetadata(key, Hash)
 	if err != nil {
 		return nil, err
@@ -260,7 +261,7 @@ func (rds *ReadisDataStructure) Hvals(key []byte) ([][]byte, error) {
 
 // ----------------------------------------------------Set数据结构-----------------------------------------------------------------------------
 
-func (rds *ReadisDataStructure) SAdd(key, member []byte) (bool, error) {
+func (rds *RedisDataStructure) SAdd(key, member []byte) (bool, error) {
 	meta, err := rds.findMetadata(key, Set)
 	if err != nil {
 		return false, err
@@ -286,7 +287,7 @@ func (rds *ReadisDataStructure) SAdd(key, member []byte) (bool, error) {
 	return ok, nil
 }
 
-func (rds *ReadisDataStructure) SIsMember(key, member []byte) (bool, error) {
+func (rds *RedisDataStructure) SIsMember(key, member []byte) (bool, error) {
 	meta, err := rds.findMetadata(key, Set)
 	if err != nil {
 		return false, err
@@ -313,7 +314,7 @@ func (rds *ReadisDataStructure) SIsMember(key, member []byte) (bool, error) {
 	return true, nil
 }
 
-func (rds *ReadisDataStructure) SRem(key, member []byte) (bool, error) {
+func (rds *RedisDataStructure) SRem(key, member []byte) (bool, error) {
 	meta, err := rds.findMetadata(key, Set)
 	if err != nil {
 		return false, err
@@ -352,23 +353,23 @@ func (rds *ReadisDataStructure) SRem(key, member []byte) (bool, error) {
 
 // ----------------------------------------------------List数据结构-----------------------------------------------------------------------------
 
-func (rds *ReadisDataStructure) LPush(key, element []byte) (uint32, error) {
+func (rds *RedisDataStructure) LPush(key, element []byte) (uint32, error) {
 	return rds.pushInner(key, element, true)
 }
 
-func (rds *ReadisDataStructure) RPush(key, element []byte) (uint32, error) {
+func (rds *RedisDataStructure) RPush(key, element []byte) (uint32, error) {
 	return rds.pushInner(key, element, false)
 }
 
-func (rds *ReadisDataStructure) LPop(key []byte) ([]byte, error) {
+func (rds *RedisDataStructure) LPop(key []byte) ([]byte, error) {
 	return rds.popInner(key, true)
 }
 
-func (rds *ReadisDataStructure) RPop(key []byte) ([]byte, error) {
+func (rds *RedisDataStructure) RPop(key []byte) ([]byte, error) {
 	return rds.popInner(key, false)
 }
 
-func (rds *ReadisDataStructure) pushInner(key, element []byte, isLeft bool) (uint32, error) {
+func (rds *RedisDataStructure) pushInner(key, element []byte, isLeft bool) (uint32, error) {
 	//查找元数据
 	meta, err := rds.findMetadata(key, List)
 	if err != nil {
@@ -403,7 +404,7 @@ func (rds *ReadisDataStructure) pushInner(key, element []byte, isLeft bool) (uin
 
 }
 
-func (rds *ReadisDataStructure) popInner(key []byte, isLeft bool) ([]byte, error) {
+func (rds *RedisDataStructure) popInner(key []byte, isLeft bool) ([]byte, error) {
 	//查找元数据
 	meta, err := rds.findMetadata(key, List)
 	if err != nil {
@@ -447,7 +448,7 @@ func (rds *ReadisDataStructure) popInner(key []byte, isLeft bool) ([]byte, error
 
 // ----------------------------------------------------ZSet数据结构-----------------------------------------------------------------------------
 
-func (rds *ReadisDataStructure) ZAdd(key []byte, score float64, member []byte) (bool, error) {
+func (rds *RedisDataStructure) ZAdd(key []byte, score float64, member []byte) (bool, error) {
 	//查找元数据
 	meta, err := rds.findMetadata(key, ZSet)
 	if err != nil {
@@ -505,7 +506,7 @@ func (rds *ReadisDataStructure) ZAdd(key []byte, score float64, member []byte) (
 	return !exits, nil
 }
 
-func (rds *ReadisDataStructure) ZScore(key []byte, member []byte) (float64, error) {
+func (rds *RedisDataStructure) ZScore(key []byte, member []byte) (float64, error) {
 	meta, err := rds.findMetadata(key, ZSet)
 	if err != nil {
 		return -1, err
@@ -527,4 +528,8 @@ func (rds *ReadisDataStructure) ZScore(key []byte, member []byte) (float64, erro
 	}
 
 	return utils.FloatFromBytes(value), nil
+}
+
+func (rds *RedisDataStructure) Close() error {
+	return rds.db.Close()
 }

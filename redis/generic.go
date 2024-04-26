@@ -9,11 +9,11 @@ import (
 // 通用命令
 
 // 删除
-func (rds *ReadisDataStructure) Del(key []byte) error {
+func (rds *RedisDataStructure) Del(key []byte) error {
 	return rds.db.Delete(key)
 }
 
-func (rds *ReadisDataStructure) Type(key []byte) (redisDataType, error) {
+func (rds *RedisDataStructure) Type(key []byte) (redisDataType, error) {
 	encValue, err := rds.db.Get(key)
 	if err != nil {
 		return 0, err
@@ -24,7 +24,7 @@ func (rds *ReadisDataStructure) Type(key []byte) (redisDataType, error) {
 	return encValue[0], err
 }
 
-func (rds *ReadisDataStructure) findMetadata(key []byte, dataType redisDataType) (*metadata, error) {
+func (rds *RedisDataStructure) findMetadata(key []byte, dataType redisDataType) (*metadata, error) {
 
 	metaBuf, err := rds.db.Get(key)
 	if err != nil && err != bitcask.ErrKeyNotFound {
