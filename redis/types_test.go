@@ -211,3 +211,144 @@ func TestReadisDataStructure_HVals(t *testing.T) {
 
 	t.Fail()
 }
+
+func TestRedisDataStructure_SIsMember(t *testing.T) {
+	opts := bitcask_go.DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-redis-sismember")
+	opts.DirPath = dir
+	rds, err := NewRedisDataStructure(opts)
+	assert.Nil(t, err)
+
+	ok, err := rds.SAdd(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(2), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("val-not-exist"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+}
+
+func TestRedisDataStructure_SRem(t *testing.T) {
+	opts := bitcask_go.DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-redis-srem")
+	opts.DirPath = dir
+	rds, err := NewRedisDataStructure(opts)
+	assert.Nil(t, err)
+
+	ok, err := rds.SAdd(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+	ok, err = rds.SAdd(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SRem(utils.GetTestKey(2), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+	ok, err = rds.SRem(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	ok, err = rds.SIsMember(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+}
+
+func TestRedisDataStructure_LPop(t *testing.T) {
+	opts := bitcask_go.DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-redis-lpop")
+	opts.DirPath = dir
+	rds, err := NewRedisDataStructure(opts)
+	assert.Nil(t, err)
+
+	res, err := rds.LPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(1), res)
+	res, err = rds.LPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(2), res)
+	res, err = rds.LPush(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(3), res)
+
+	val, err := rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+	val, err = rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+	val, err = rds.LPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+}
+
+func TestRedisDataStructure_RPop(t *testing.T) {
+	opts := bitcask_go.DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-redis-rpop")
+	opts.DirPath = dir
+	rds, err := NewRedisDataStructure(opts)
+	assert.Nil(t, err)
+
+	res, err := rds.RPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(1), res)
+	res, err = rds.RPush(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(2), res)
+	res, err = rds.RPush(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.Equal(t, uint32(3), res)
+
+	val, err := rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+	val, err = rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+	val, err = rds.RPop(utils.GetTestKey(1))
+	assert.Nil(t, err)
+	assert.NotNil(t, val)
+}
+
+func TestRedisDataStructure_ZScore(t *testing.T) {
+	opts := bitcask_go.DefaultDBOptions
+	dir, _ := os.MkdirTemp("", "bitcask-go-redis-zset")
+	opts.DirPath = dir
+	rds, err := NewRedisDataStructure(opts)
+	assert.Nil(t, err)
+
+	ok, err := rds.ZAdd(utils.GetTestKey(1), 113, []byte("val-1"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+	ok, err = rds.ZAdd(utils.GetTestKey(1), 333, []byte("val-1"))
+	assert.Nil(t, err)
+	assert.False(t, ok)
+	ok, err = rds.ZAdd(utils.GetTestKey(1), 98, []byte("val-2"))
+	assert.Nil(t, err)
+	assert.True(t, ok)
+
+	score, err := rds.ZScore(utils.GetTestKey(1), []byte("val-1"))
+	assert.Nil(t, err)
+	assert.Equal(t, float64(333), score)
+	score, err = rds.ZScore(utils.GetTestKey(1), []byte("val-2"))
+	assert.Nil(t, err)
+	assert.Equal(t, float64(98), score)
+}
